@@ -1,22 +1,11 @@
-import dotenv from "dotenv";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
-dotenv.config();
-
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
+import { requireAuth, db } from "../lib/auth.js";
 
 function listAgents(fastify, options, done) {
   fastify.get("/v1/agents", async (request, reply) => {
-    // 1. Verify API key
-    const authHeader = request.headers["authorization"] || "";
-    const apiKey = authHeader.replace("Bearer ", "");
-    const org = await db.query(api.agents.getOrgByApiKey, { apiKey });
+    const org = await requireAuth(request, reply);
+    if (!org) return;
 
-    if (!org) {
-      return reply.code(401).send({ error: "Invalid API key" });
-    }
-
-    // 2. Fetch all agents for this org
     const agents = await db.query(api.agents.getAgentsByOrg, {
       orgId: org.orgId,
     });

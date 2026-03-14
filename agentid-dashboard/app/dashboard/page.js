@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Cookies from "js-cookie";
 import Link from "next/link";
 
 const STYLES = `
@@ -9,34 +8,15 @@ const STYLES = `
   * { box-sizing: border-box; }
   body { background: #FFFEF0; font-family: 'Space Grotesk', sans-serif; }
   .b-card { background: #fff; border: 3px solid #0D0D0D; box-shadow: 5px 5px 0 #0D0D0D; }
-  .b-btn {
-    border: 3px solid #0D0D0D; box-shadow: 4px 4px 0 #0D0D0D;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer;
-    transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block;
-  }
+  .b-btn { border: 3px solid #0D0D0D; box-shadow: 4px 4px 0 #0D0D0D; font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer; transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; }
   .b-btn:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 #0D0D0D; }
   .b-btn:active { transform: translate(4px,4px); box-shadow: 0 0 0 #0D0D0D; }
-  .b-input {
-    border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace;
-    font-size: 13px; padding: 10px 12px; width: 100%; outline: none;
-  }
+  .b-input { border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 12px; width: 100%; outline: none; }
   .b-input:focus { box-shadow: 3px 3px 0 #0D0D0D; }
-  .cap-tag {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #FFE135; border: 2px solid #0D0D0D; box-shadow: 2px 2px 0 #0D0D0D;
-    padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500;
-  }
-  .agent-row {
-    border: 3px solid #0D0D0D; background: #fff; padding: 18px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    transition: all 0.1s; margin-bottom: 8px;
-  }
+  .cap-tag { display: inline-flex; align-items: center; gap: 6px; background: #FFE135; border: 2px solid #0D0D0D; box-shadow: 2px 2px 0 #0D0D0D; padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; }
+  .agent-row { border: 3px solid #0D0D0D; background: #fff; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; transition: all 0.1s; margin-bottom: 8px; }
   .agent-row:hover { box-shadow: 4px 4px 0 #0D0D0D; transform: translate(-1px,-1px); }
-  .overlay {
-    position: fixed; inset: 0; background: rgba(13,13,13,0.7);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 50; padding: 20px;
-  }
+  .overlay { position: fixed; inset: 0; background: rgba(13,13,13,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
   .modal { background: #FFFEF0; border: 3px solid #0D0D0D; box-shadow: 8px 8px 0 #0D0D0D; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
   .stat-card { border: 3px solid #0D0D0D; padding: 20px 24px; }
 `;
@@ -52,43 +32,37 @@ export default function Dashboard() {
   const [caps, setCaps] = useState([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
-  const apiKey = Cookies.get("agentid_api_key");
 
   useEffect(() => {
-    if (!apiKey) {
-      router.push("/");
-      return;
-    }
     fetchAgents();
   }, []);
 
   const fetchAgents = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/agents`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    const data = await res.json();
-    setLoading(false);
+    // All backend calls go through /api/v1/... — the proxy injects the auth cookie server-side
+    const res = await fetch("/api/v1/agents");
     if (res.status === 401) {
-      Cookies.remove("agentid_api_key");
       router.push("/");
       return;
     }
+    const data = await res.json();
+    setLoading(false);
     if (res.ok) setAgents(data.agents);
   };
 
   const handleRevoke = async (agentId) => {
     if (!confirm("Revoke this agent? This cannot be undone.")) return;
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/${agentId}/revoke`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${apiKey}` },
-      },
-    );
+    const res = await fetch(`/api/v1/agents/${agentId}/revoke`, {
+      method: "DELETE",
+    });
     if (res.ok)
       setAgents((prev) =>
         prev.map((a) => (a.agent_id === agentId ? { ...a, revoked: true } : a)),
       );
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/auth", { method: "DELETE" });
+    router.push("/");
   };
 
   const addCap = () => {
@@ -104,21 +78,15 @@ export default function Dashboard() {
     if (caps.length === 0) return setCreateError("Add at least one capability");
     setCreating(true);
     setCreateError("");
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/register`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          name: newName,
-          model: newModel || undefined,
-          capabilities: caps,
-        }),
-      },
-    );
+    const res = await fetch("/api/v1/agents/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newName,
+        model: newModel || undefined,
+        capabilities: caps,
+      }),
+    });
     const data = await res.json();
     setCreating(false);
     if (!res.ok) return setCreateError(data.error);
@@ -133,11 +101,7 @@ export default function Dashboard() {
         created_at: Date.now(),
       },
     ]);
-    setShowModal(false);
-    setNewName("");
-    setNewModel("");
-    setCaps([]);
-    setCapInput("");
+    resetModal();
   };
 
   const resetModal = () => {
@@ -184,7 +148,6 @@ export default function Dashboard() {
           backgroundSize: "24px 24px",
         }}
       >
-        {/* Top nav */}
         <div
           style={{
             borderBottom: "3px solid #0D0D0D",
@@ -209,7 +172,7 @@ export default function Dashboard() {
                 letterSpacing: "3px",
               }}
             >
-              AGENTID
+              VOUCHID
             </span>
             <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
               <Link
@@ -238,10 +201,7 @@ export default function Dashboard() {
                 + New Agent
               </button>
               <button
-                onClick={() => {
-                  Cookies.remove("agentid_api_key");
-                  router.push("/");
-                }}
+                onClick={handleLogout}
                 style={{
                   background: "none",
                   border: "none",
@@ -261,7 +221,6 @@ export default function Dashboard() {
         <div
           style={{ maxWidth: "1100px", margin: "0 auto", padding: "40px 32px" }}
         >
-          {/* Stats row */}
           <div
             style={{
               display: "grid",
@@ -313,7 +272,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Section title */}
           <div
             style={{
               display: "flex",
@@ -334,7 +292,6 @@ export default function Dashboard() {
             <div style={{ flex: 1, height: "3px", background: "#0D0D0D" }} />
           </div>
 
-          {/* Agent list */}
           {agents.length === 0 ? (
             <div
               className="b-card"
@@ -386,7 +343,6 @@ export default function Dashboard() {
                       minWidth: 0,
                     }}
                   >
-                    {/* Status indicator */}
                     <div
                       style={{
                         width: "14px",
@@ -397,7 +353,6 @@ export default function Dashboard() {
                         flexShrink: 0,
                       }}
                     />
-
                     <div style={{ minWidth: 0 }}>
                       <div
                         style={{
@@ -452,7 +407,6 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-
                   <div
                     style={{
                       display: "flex",
@@ -496,14 +450,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* New Agent Modal */}
       {showModal && (
         <div
           className="overlay"
           onClick={(e) => e.target === e.currentTarget && resetModal()}
         >
           <div className="modal">
-            {/* Modal header */}
             <div
               style={{
                 background: "#FFE135",
@@ -537,9 +489,7 @@ export default function Dashboard() {
                 ×
               </button>
             </div>
-
             <div style={{ padding: "28px" }}>
-              {/* Name */}
               <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
@@ -560,8 +510,6 @@ export default function Dashboard() {
                   placeholder="support-bot"
                 />
               </div>
-
-              {/* Model */}
               <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
@@ -591,8 +539,6 @@ export default function Dashboard() {
                   placeholder="gpt-4o, claude-3-5-sonnet, etc."
                 />
               </div>
-
-              {/* Capabilities */}
               <div style={{ marginBottom: "24px" }}>
                 <label
                   style={{
@@ -641,7 +587,7 @@ export default function Dashboard() {
                     Add
                   </button>
                 </div>
-                {caps.length > 0 && (
+                {caps.length > 0 ? (
                   <div
                     style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
                   >
@@ -667,8 +613,7 @@ export default function Dashboard() {
                       </span>
                     ))}
                   </div>
-                )}
-                {caps.length === 0 && (
+                ) : (
                   <p
                     style={{
                       fontFamily: "'DM Mono', monospace",
@@ -680,7 +625,6 @@ export default function Dashboard() {
                   </p>
                 )}
               </div>
-
               {createError && (
                 <div
                   style={{
@@ -697,7 +641,6 @@ export default function Dashboard() {
                   ⚠ {createError}
                 </div>
               )}
-
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   className="b-btn"

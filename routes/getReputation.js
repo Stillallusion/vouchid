@@ -1,21 +1,18 @@
-import dotenv from "dotenv";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
-dotenv.config();
-
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
+import { requireAuth, db } from "../lib/auth.js";
 
 function getReputation(fastify, options, done) {
   fastify.get("/v1/agents/:agentId/reputation", async (request, reply) => {
     const { agentId } = request.params;
 
-    // Verify API key
-    const authHeader = request.headers["authorization"] || "";
-    const apiKey = authHeader.replace("Bearer ", "");
-    const org = await db.query(api.agents.getOrgByApiKey, { apiKey });
+    const org = await requireAuth(request, reply);
+    if (!org) return;
 
-    if (!org) {
-      return reply.code(401).send({ error: "Invalid API key" });
+    // Verify the agent belongs to this org before exposing reputation data
+    const agent = await db.query(api.agents.getAgentById, { agentId });
+
+    if (!agent || agent.orgId !== org.orgId) {
+      return reply.code(404).send({ error: "Agent not found" });
     }
 
     const reputation = await db.query(api.agents.getReputation, { agentId });

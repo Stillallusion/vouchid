@@ -81,26 +81,6 @@ export const logAuditEvent = mutation({
 
 // ── Seed the test organization ────────────────────────
 // Run this once manually to create your test org
-export const seedTestOrg = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const existing = await ctx.db
-      .query("organizations")
-      .withIndex("by_apiKey", (q) => q.eq("apiKey", "sk_test_abc123"))
-      .first();
-
-    if (existing) return "Already seeded";
-
-    await ctx.db.insert("organizations", {
-      name: "Test Company",
-      apiKey: "sk_test_abc123",
-      orgId: "org_testcompany",
-      plan: "free",
-    });
-
-    return "Seeded successfully";
-  },
-});
 
 export const createOrg = mutation({
   args: {

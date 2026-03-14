@@ -1,11 +1,9 @@
-import dotenv from "dotenv";
 import { jwtVerify } from "jose";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
-dotenv.config();
+import { db } from "../lib/auth.js";
 
+// JWT_SECRET is safe to load at module level — server.js runs `import "dotenv/config"` first
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
 
 function verifyAgent(fastify, options, done) {
   fastify.post("/v1/agents/verify", async (request, reply) => {
@@ -16,17 +14,13 @@ function verifyAgent(fastify, options, done) {
     }
 
     try {
-      // 1. Verify the JWT signature and expiry
       const { payload } = await jwtVerify(token, JWT_SECRET);
 
-      // 2. Look up agent in Convex
       const agent = await db.query(api.agents.getAgentById, {
         agentId: payload.agent_id,
       });
 
-      // 3. Check revocation
       if (!agent || agent.revoked) {
-        // Log failed verification — revoked agents trying to verify hurts score
         if (agent) {
           await db.mutation(api.agents.updateTrustScore, {
             agentId: payload.agent_id,
@@ -44,13 +38,11 @@ function verifyAgent(fastify, options, done) {
           .send({ valid: false, reason: "Agent has been revoked" });
       }
 
-      // 4. Check capabilities
       if (required_capabilities && required_capabilities.length > 0) {
         const missing = required_capabilities.filter(
           (cap) => !payload.capabilities.includes(cap),
         );
         if (missing.length > 0) {
-          // Capability mismatch — slight score penalty
           await db.mutation(api.agents.updateTrustScore, {
             agentId: payload.agent_id,
             event: "verify_fail",
@@ -68,12 +60,10 @@ function verifyAgent(fastify, options, done) {
         }
       }
 
-      // 5. All good — update score upward and log success
       const reputation = await db.mutation(api.agents.updateTrustScore, {
         agentId: payload.agent_id,
         event: "verify_success",
       });
-
       await db.mutation(api.agents.logAuditEvent, {
         agentId: agent.agentId,
         orgId: agent.orgId,
@@ -81,19 +71,18 @@ function verifyAgent(fastify, options, done) {
         detail: `score: ${reputation.trustScore.toFixed(2)}`,
       });
 
-      // 6. Return identity + live reputation score
       return reply.send({
         valid: true,
         agent_id: payload.agent_id,
         agent_name: payload.agent_name,
         owner_org: payload.owner_org,
         capabilities: payload.capabilities,
-        trust_level: reputation.trustLevel, // live value, not from JWT
-        trust_score: reputation.trustScore, // 0.0 - 1.0
+        trust_level: reputation.trustLevel,
+        trust_score: reputation.trustScore,
         expires_at: new Date(payload.exp * 1000).toISOString(),
       });
     } catch (error) {
-      console.log("Verify error:", error.message, error.stack);
+      fastify.log.error({ err: error }, "Token verification failed");
       return reply
         .code(401)
         .send({ valid: false, reason: "Token is invalid or expired" });

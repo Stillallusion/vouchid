@@ -4,3 +4,4 @@ node_modules/
 .DS_Store
 *.log
 agent-state.json
+convex/_generated/

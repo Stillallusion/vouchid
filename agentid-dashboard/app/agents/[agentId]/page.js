@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Cookies from "js-cookie";
 import Link from "next/link";
 
 const STYLES = `
@@ -9,29 +8,13 @@ const STYLES = `
   * { box-sizing: border-box; }
   body { background: #FFFEF0; font-family: 'Space Grotesk', sans-serif; }
   .b-card { background: #fff; border: 3px solid #0D0D0D; box-shadow: 5px 5px 0 #0D0D0D; }
-  .b-btn {
-    border: 3px solid #0D0D0D; box-shadow: 4px 4px 0 #0D0D0D;
-    font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer;
-    transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em;
-  }
+  .b-btn { border: 3px solid #0D0D0D; box-shadow: 4px 4px 0 #0D0D0D; font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer; transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em; }
   .b-btn:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 #0D0D0D; }
   .b-btn:active { transform: translate(4px,4px); box-shadow: 0 0 0 #0D0D0D; }
-  .b-input {
-    border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace;
-    font-size: 13px; padding: 10px 12px; width: 100%; outline: none;
-  }
+  .b-input { border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 12px; width: 100%; outline: none; }
   .b-input:focus { box-shadow: 3px 3px 0 #0D0D0D; }
-  .cap-tag {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #FFE135; border: 2px solid #0D0D0D; box-shadow: 2px 2px 0 #0D0D0D;
-    padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 12px;
-  }
-  .tab-btn {
-    padding: 10px 20px; font-family: 'Space Grotesk', sans-serif; font-weight: 700;
-    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em;
-    cursor: pointer; border: 3px solid transparent; transition: all 0.1s;
-    background: none;
-  }
+  .cap-tag { display: inline-flex; align-items: center; gap: 6px; background: #FFE135; border: 2px solid #0D0D0D; box-shadow: 2px 2px 0 #0D0D0D; padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .tab-btn { padding: 10px 20px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; border: 3px solid transparent; transition: all 0.1s; background: none; }
   .tab-btn.active { background: #FFE135; border-color: #0D0D0D; box-shadow: 3px 3px 0 #0D0D0D; }
   .audit-row { border-bottom: 2px solid #eee; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; }
   .audit-row:last-child { border-bottom: none; }
@@ -57,54 +40,49 @@ export default function AgentDetail() {
   const [agent, setAgent] = useState(null);
   const [audit, setAudit] = useState([]);
   const [reputation, setReputation] = useState(null);
-  const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
-  const apiKey = Cookies.get("agentid_api_key");
 
-  // Edit state
   const [editCaps, setEditCaps] = useState([]);
   const [editModel, setEditModel] = useState("");
   const [capInput, setCapInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
-  // Permission policy state
   const [permCap, setPermCap] = useState("");
   const [permRate, setPermRate] = useState("");
   const [permAmount, setPermAmount] = useState("");
   const [permApproval, setPermApproval] = useState(false);
   const [permSaving, setPermSaving] = useState(false);
   const [permMsg, setPermMsg] = useState("");
+  const [permissions, setPermissions] = useState([]);
 
-  // Refresh state
   const [refreshing, setRefreshing] = useState(false);
   const [newToken, setNewToken] = useState(null);
   const [tokenCopied, setTokenCopied] = useState(false);
 
   useEffect(() => {
-    if (!apiKey) {
-      router.push("/");
-      return;
-    }
     fetchAll();
   }, []);
 
   const fetchAll = async () => {
-    const headers = { Authorization: `Bearer ${apiKey}` };
-    const base = process.env.NEXT_PUBLIC_API_URL;
     const [aRes, auRes, rRes] = await Promise.all([
-      fetch(`${base}/v1/agents/${agentId}`, { headers }),
-      fetch(`${base}/v1/agents/${agentId}/audit`, { headers }),
-      fetch(`${base}/v1/agents/${agentId}/reputation`, { headers }),
+      fetch(`/api/v1/agents/${agentId}`),
+      fetch(`/api/v1/agents/${agentId}/audit`),
+      fetch(`/api/v1/agents/${agentId}/reputation`),
     ]);
+
+    if (aRes.status === 401) {
+      router.push("/");
+      return;
+    }
+
     const [aData, auData, rData] = await Promise.all([
       aRes.json(),
       auRes.json(),
       rRes.json(),
     ]);
-    const merged = { ...aData, ...rData };
-    setAgent(merged);
+    setAgent({ ...aData, ...rData });
     setAudit(auData.events || []);
     setReputation(rData);
     setEditCaps(aData.capabilities || []);
@@ -114,13 +92,9 @@ export default function AgentDetail() {
 
   const handleRevoke = async () => {
     if (!confirm("Revoke this agent? This cannot be undone.")) return;
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/${agentId}/revoke`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${apiKey}` },
-      },
-    );
+    const res = await fetch(`/api/v1/agents/${agentId}/revoke`, {
+      method: "DELETE",
+    });
     if (res.ok) {
       setAgent((prev) => ({ ...prev, revoked: true }));
       setAudit((prev) => [
@@ -133,20 +107,14 @@ export default function AgentDetail() {
   const handleSaveEdit = async () => {
     setSaving(true);
     setSaveMsg("");
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/${agentId}`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          capabilities: editCaps,
-          model: editModel || undefined,
-        }),
-      },
-    );
+    const res = await fetch(`/api/v1/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        capabilities: editCaps,
+        model: editModel || undefined,
+      }),
+    });
     setSaving(false);
     if (res.ok) {
       setSaveMsg("Saved!");
@@ -163,22 +131,16 @@ export default function AgentDetail() {
     if (!permCap.trim()) return setPermMsg("Capability is required");
     setPermSaving(true);
     setPermMsg("");
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/${agentId}/permissions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          capability: permCap,
-          rate_limit: permRate ? parseInt(permRate) : undefined,
-          max_amount: permAmount ? parseFloat(permAmount) : undefined,
-          require_human_approval: permApproval,
-        }),
-      },
-    );
+    const res = await fetch(`/api/v1/agents/${agentId}/permissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        capability: permCap,
+        rate_limit: permRate ? parseInt(permRate) : undefined,
+        max_amount: permAmount ? parseFloat(permAmount) : undefined,
+        require_human_approval: permApproval,
+      }),
+    });
     setPermSaving(false);
     if (res.ok) {
       setPermMsg("Policy saved!");
@@ -211,13 +173,9 @@ export default function AgentDetail() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/agents/${agentId}/refresh`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}` },
-      },
-    );
+    const res = await fetch(`/api/v1/agents/${agentId}/refresh`, {
+      method: "POST",
+    });
     setRefreshing(false);
     if (res.ok) {
       const data = await res.json();
@@ -287,7 +245,6 @@ export default function AgentDetail() {
           backgroundSize: "24px 24px",
         }}
       >
-        {/* Nav */}
         <div
           style={{
             borderBottom: "3px solid #0D0D0D",
@@ -312,7 +269,7 @@ export default function AgentDetail() {
                 letterSpacing: "3px",
               }}
             >
-              AGENTID
+              VOUCHID
             </span>
             <Link
               href="/dashboard"
@@ -333,7 +290,6 @@ export default function AgentDetail() {
         <div
           style={{ maxWidth: "1000px", margin: "0 auto", padding: "40px 32px" }}
         >
-          {/* Agent header card */}
           <div
             className="b-card"
             style={{ padding: "28px 32px", marginBottom: "28px" }}
@@ -391,7 +347,6 @@ export default function AgentDetail() {
                   {agent.agent_id}
                 </p>
               </div>
-
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <button
                   className="b-btn"
@@ -423,7 +378,6 @@ export default function AgentDetail() {
               </div>
             </div>
 
-            {/* Refreshed token display */}
             {newToken && (
               <div
                 style={{
@@ -473,7 +427,6 @@ export default function AgentDetail() {
               </div>
             )}
 
-            {/* Score bar */}
             {reputation && (
               <div
                 style={{
@@ -541,7 +494,6 @@ export default function AgentDetail() {
             )}
           </div>
 
-          {/* Tabs */}
           <div
             style={{
               display: "flex",
@@ -561,7 +513,6 @@ export default function AgentDetail() {
             ))}
           </div>
 
-          {/* Tab: Overview */}
           {tab === "overview" && (
             <div className="b-card" style={{ padding: "28px 32px" }}>
               <h3
@@ -630,31 +581,28 @@ export default function AgentDetail() {
                   </div>
                 ))}
               </div>
-              <div>
-                <p
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: "700",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "#666",
-                    marginBottom: "10px",
-                  }}
-                >
-                  Capabilities
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {(agent.capabilities || []).map((cap) => (
-                    <span key={cap} className="cap-tag">
-                      {cap}
-                    </span>
-                  ))}
-                </div>
+              <p
+                style={{
+                  fontSize: "11px",
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  color: "#666",
+                  marginBottom: "10px",
+                }}
+              >
+                Capabilities
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {(agent.capabilities || []).map((cap) => (
+                  <span key={cap} className="cap-tag">
+                    {cap}
+                  </span>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Tab: Permissions */}
           {tab === "permissions" && (
             <div className="b-card" style={{ padding: "28px 32px" }}>
               <h3
@@ -677,7 +625,6 @@ export default function AgentDetail() {
               >
                 Set limits on what this agent can do per capability.
               </p>
-
               <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
@@ -698,7 +645,6 @@ export default function AgentDetail() {
                   placeholder="write:payments"
                 />
               </div>
-
               <div
                 style={{
                   display: "grid",
@@ -750,7 +696,6 @@ export default function AgentDetail() {
                   />
                 </div>
               </div>
-
               <div
                 style={{
                   display: "flex",
@@ -803,7 +748,6 @@ export default function AgentDetail() {
                   </p>
                 </div>
               </div>
-
               {permMsg && (
                 <div
                   style={{
@@ -820,7 +764,6 @@ export default function AgentDetail() {
                   {permMsg}
                 </div>
               )}
-
               <button
                 className="b-btn"
                 onClick={handleSetPermission}
@@ -834,59 +777,9 @@ export default function AgentDetail() {
               >
                 {permSaving ? "Saving..." : "Save Policy"}
               </button>
-
-              {permissions.length > 0 && (
-                <div style={{ marginTop: "32px" }}>
-                  <p
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    Active Policies
-                  </p>
-                  {permissions.map((p) => (
-                    <div
-                      key={p.capability}
-                      style={{
-                        border: "2px solid #0D0D0D",
-                        padding: "12px 16px",
-                        marginBottom: "8px",
-                        background: "#FFFEF0",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span className="cap-tag">{p.capability}</span>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "16px",
-                          fontFamily: "'DM Mono', monospace",
-                          fontSize: "12px",
-                          color: "#555",
-                        }}
-                      >
-                        {p.rate_limit && <span>{p.rate_limit}/hr</span>}
-                        {p.max_amount && <span>max ${p.max_amount}</span>}
-                        {p.require_human_approval && (
-                          <span style={{ color: "#FF8C00", fontWeight: "600" }}>
-                            needs approval
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
-          {/* Tab: Edit */}
           {tab === "edit" && (
             <div className="b-card" style={{ padding: "28px 32px" }}>
               <h3
@@ -910,7 +803,6 @@ export default function AgentDetail() {
                 Updating capabilities does not rotate the token — use Refresh
                 Token to issue a new JWT.
               </p>
-
               <div style={{ marginBottom: "20px" }}>
                 <label
                   style={{
@@ -931,7 +823,6 @@ export default function AgentDetail() {
                   placeholder="gpt-4o"
                 />
               </div>
-
               <div style={{ marginBottom: "24px" }}>
                 <label
                   style={{
@@ -998,7 +889,6 @@ export default function AgentDetail() {
                   ))}
                 </div>
               </div>
-
               {saveMsg && (
                 <div
                   style={{
@@ -1014,7 +904,6 @@ export default function AgentDetail() {
                   ✓ {saveMsg}
                 </div>
               )}
-
               <button
                 className="b-btn"
                 onClick={handleSaveEdit}
@@ -1031,7 +920,6 @@ export default function AgentDetail() {
             </div>
           )}
 
-          {/* Tab: Audit */}
           {tab === "audit" && (
             <div className="b-card" style={{ padding: "28px 32px" }}>
               <h3

@@ -1,21 +1,43 @@
-import dotenv from "dotenv";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
 import { v4 as uuidv4 } from "uuid";
-dotenv.config();
+import { db } from "../lib/auth.js";
 
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
+// Simple in-memory rate limiter for org registration.
+// Limits each IP to 5 signups per hour.
+// For production scale, replace with @fastify/rate-limit + Redis.
+const RATE_LIMIT = 5;
+const WINDOW_MS = 60 * 60 * 1000;
+const _ipWindows = new Map();
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = _ipWindows.get(ip);
+
+  if (!entry || now - entry.windowStart > WINDOW_MS) {
+    _ipWindows.set(ip, { count: 1, windowStart: now });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT) return true;
+  entry.count++;
+  return false;
+}
 
 function registerOrg(fastify, options, done) {
   fastify.post("/v1/orgs/register", async (request, reply) => {
+    const ip = request.ip;
+
+    if (isRateLimited(ip)) {
+      return reply
+        .code(429)
+        .send({ error: "Too many signup attempts. Try again later." });
+    }
+
     const body = request.body;
 
-    // 1. Validate the body
     if (!body.name || typeof body.name !== "string") {
       return reply.code(400).send({ error: "name is required" });
     }
 
-    // 2. Check the org name isn't already taken
     const existing = await db.query(api.agents.getOrgByName, {
       name: body.name,
     });
@@ -26,11 +48,9 @@ function registerOrg(fastify, options, done) {
         .send({ error: "An org with that name already exists" });
     }
 
-    // 3. Generate a unique org ID and API key
     const orgId = `org_${uuidv4().replace(/-/g, "").slice(0, 20)}`;
     const apiKey = `sk_live_${uuidv4().replace(/-/g, "").slice(0, 32)}`;
 
-    // 4. Save to Convex
     await db.mutation(api.agents.createOrg, {
       name: body.name,
       apiKey,
@@ -38,8 +58,6 @@ function registerOrg(fastify, options, done) {
       plan: "free",
     });
 
-    // 5. Return the org ID and API key
-    // This is the ONLY time the API key is returned — just like Stripe
     return reply.code(201).send({
       org_id: orgId,
       api_key: apiKey,

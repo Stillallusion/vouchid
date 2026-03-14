@@ -1,31 +1,19 @@
-import dotenv from "dotenv";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
-dotenv.config();
-
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
+import { requireAuth, db } from "../lib/auth.js";
 
 function checkPermission(fastify, options, done) {
   fastify.post("/v1/agents/check-permission", async (request, reply) => {
     const { agent_id, capability, context } = request.body;
 
-    // 1. Validate inputs
     if (!agent_id || !capability) {
       return reply
         .code(400)
         .send({ error: "agent_id and capability are required" });
     }
 
-    // 2. Verify org API key
-    const authHeader = request.headers["authorization"] || "";
-    const apiKey = authHeader.replace("Bearer ", "");
-    const org = await db.query(api.agents.getOrgByApiKey, { apiKey });
+    const org = await requireAuth(request, reply);
+    if (!org) return;
 
-    if (!org) {
-      return reply.code(401).send({ error: "Invalid API key" });
-    }
-
-    // 3. Get the agent
     const agent = await db.query(api.agents.getAgentById, {
       agentId: agent_id,
     });
@@ -37,7 +25,6 @@ function checkPermission(fastify, options, done) {
       });
     }
 
-    // 4. Check agent actually has this capability
     if (!agent.capabilities.includes(capability)) {
       await db.mutation(api.agents.logAuditEvent, {
         agentId: agent_id,
@@ -51,13 +38,11 @@ function checkPermission(fastify, options, done) {
       });
     }
 
-    // 5. Get the permission policy for this capability
     const policy = await db.query(api.agents.getPermission, {
       agentId: agent_id,
       capability,
     });
 
-    // If no policy exists, default to allowed
     if (!policy || !policy.enabled) {
       await db.mutation(api.agents.logAuditEvent, {
         agentId: agent_id,
@@ -71,35 +56,29 @@ function checkPermission(fastify, options, done) {
       });
     }
 
-    // 6. Check rate limit
     if (policy.rateLimit) {
-      const rateLimitResult = await db.mutation(
-        api.agents.checkAndIncrementRateLimit,
-        {
-          agentId: agent_id,
-          capability,
-          maxPerHour: policy.rateLimit,
-        },
-      );
-
-      if (!rateLimitResult.allowed) {
+      const rl = await db.mutation(api.agents.checkAndIncrementRateLimit, {
+        agentId: agent_id,
+        capability,
+        maxPerHour: policy.rateLimit,
+      });
+      if (!rl.allowed) {
         await db.mutation(api.agents.logAuditEvent, {
           agentId: agent_id,
           orgId: org.orgId,
           action: "permission.rate_limited",
-          detail: `limit: ${policy.rateLimit}/hr, resets: ${new Date(rateLimitResult.resetsAt).toISOString()}`,
+          detail: `limit: ${policy.rateLimit}/hr, resets: ${new Date(rl.resetsAt).toISOString()}`,
         });
         return reply.send({
           allowed: false,
           reason: "Rate limit exceeded",
           limit: policy.rateLimit,
           remaining: 0,
-          resets_at: new Date(rateLimitResult.resetsAt).toISOString(),
+          resets_at: new Date(rl.resetsAt).toISOString(),
         });
       }
     }
 
-    // 7. Check amount limit
     if (policy.maxAmount && context?.amount) {
       const amount = Number(context.amount);
       if (amount > policy.maxAmount) {
@@ -117,7 +96,6 @@ function checkPermission(fastify, options, done) {
       }
     }
 
-    // 8. Check if human approval is required
     if (policy.requireHumanApproval) {
       const approval = await db.mutation(api.agents.createApprovalRequest, {
         agentId: agent_id,
@@ -125,14 +103,12 @@ function checkPermission(fastify, options, done) {
         capability,
         context: JSON.stringify(context || {}),
       });
-
       await db.mutation(api.agents.logAuditEvent, {
         agentId: agent_id,
         orgId: org.orgId,
         action: "permission.awaiting_approval",
         detail: `approval id: ${approval}`,
       });
-
       return reply.send({
         allowed: false,
         requires_approval: true,
@@ -141,7 +117,6 @@ function checkPermission(fastify, options, done) {
       });
     }
 
-    // 9. All checks passed
     await db.mutation(api.agents.logAuditEvent, {
       agentId: agent_id,
       orgId: org.orgId,
@@ -149,11 +124,7 @@ function checkPermission(fastify, options, done) {
       detail: `capability: ${capability}`,
     });
 
-    return reply.send({
-      allowed: true,
-      capability,
-      agent_id,
-    });
+    return reply.send({ allowed: true, capability, agent_id });
   });
 
   done();

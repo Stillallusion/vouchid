@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Cookies from "js-cookie";
 
 export default function Home() {
   const router = useRouter();
@@ -31,10 +30,27 @@ export default function Home() {
     setResult(data);
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!apiKey.trim()) return setError("Enter your API key");
-    Cookies.set("agentid_api_key", apiKey, { expires: 7 });
+    setLoading(true);
+    setError("");
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey }),
+    });
+    setLoading(false);
+    if (!res.ok) return setError("Invalid API key format");
     router.push("/dashboard");
+  };
+
+  const handleGoToDashboard = async () => {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey: result.api_key }),
+    });
+    if (res.ok) router.push("/dashboard");
   };
 
   const handleCopy = () => {
@@ -49,51 +65,14 @@ export default function Home() {
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #FFFEF0; font-family: 'Space Grotesk', sans-serif; }
-        .brutalist-card {
-          background: #fff;
-          border: 3px solid #0D0D0D;
-          box-shadow: 6px 6px 0px #0D0D0D;
-        }
-        .brutalist-btn {
-          border: 3px solid #0D0D0D;
-          box-shadow: 4px 4px 0px #0D0D0D;
-          font-family: 'Space Grotesk', sans-serif;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.1s ease;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-        .brutalist-btn:hover {
-          transform: translate(2px, 2px);
-          box-shadow: 2px 2px 0px #0D0D0D;
-        }
-        .brutalist-btn:active {
-          transform: translate(4px, 4px);
-          box-shadow: 0px 0px 0px #0D0D0D;
-        }
-        .brutalist-input {
-          border: 3px solid #0D0D0D;
-          background: #FFFEF0;
-          font-family: 'DM Mono', monospace;
-          font-size: 14px;
-          padding: 12px 14px;
-          width: 100%;
-          outline: none;
-          transition: box-shadow 0.1s;
-        }
-        .brutalist-input:focus {
-          box-shadow: 4px 4px 0px #0D0D0D;
-        }
-        .tab-active {
-          background: #FFE135;
-          border: 3px solid #0D0D0D;
-          box-shadow: 3px 3px 0px #0D0D0D;
-        }
-        .tab-inactive {
-          background: transparent;
-          border: 3px solid transparent;
-        }
+        .brutalist-card { background: #fff; border: 3px solid #0D0D0D; box-shadow: 6px 6px 0px #0D0D0D; }
+        .brutalist-btn { border: 3px solid #0D0D0D; box-shadow: 4px 4px 0px #0D0D0D; font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer; transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em; }
+        .brutalist-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px #0D0D0D; }
+        .brutalist-btn:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px #0D0D0D; }
+        .brutalist-input { border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace; font-size: 14px; padding: 12px 14px; width: 100%; outline: none; transition: box-shadow 0.1s; }
+        .brutalist-input:focus { box-shadow: 4px 4px 0px #0D0D0D; }
+        .tab-active { background: #FFE135; border: 3px solid #0D0D0D; box-shadow: 3px 3px 0px #0D0D0D; }
+        .tab-inactive { background: transparent; border: 3px solid transparent; }
       `}</style>
 
       <div
@@ -106,7 +85,6 @@ export default function Home() {
           background: "#FFFEF0",
         }}
       >
-        {/* Background grid pattern */}
         <div
           style={{
             position: "fixed",
@@ -125,7 +103,6 @@ export default function Home() {
             zIndex: 1,
           }}
         >
-          {/* Logo */}
           <div style={{ textAlign: "center", marginBottom: "32px" }}>
             <div
               style={{
@@ -145,7 +122,7 @@ export default function Home() {
                   color: "#0D0D0D",
                 }}
               >
-                AGENTID
+                VOUCHID
               </span>
             </div>
             <p
@@ -160,10 +137,8 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Card */}
           <div className="brutalist-card" style={{ padding: "32px" }}>
             {result ? (
-              /* Success state */
               <div>
                 <div
                   style={{
@@ -227,12 +202,7 @@ export default function Home() {
                 </button>
                 <button
                   className="brutalist-btn"
-                  onClick={() => {
-                    Cookies.set("agentid_api_key", result.api_key, {
-                      expires: 7,
-                    });
-                    router.push("/dashboard");
-                  }}
+                  onClick={handleGoToDashboard}
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -245,7 +215,6 @@ export default function Home() {
               </div>
             ) : (
               <div>
-                {/* Tabs */}
                 <div
                   style={{ display: "flex", gap: "8px", marginBottom: "28px" }}
                 >
@@ -365,14 +334,16 @@ export default function Home() {
                     <button
                       className="brutalist-btn"
                       onClick={handleLogin}
+                      disabled={loading}
                       style={{
                         width: "100%",
                         padding: "14px",
                         background: "#FFE135",
                         fontSize: "15px",
+                        opacity: loading ? 0.6 : 1,
                       }}
                     >
-                      Enter Dashboard →
+                      {loading ? "Logging in..." : "Enter Dashboard →"}
                     </button>
                   </div>
                 )}
@@ -389,7 +360,7 @@ export default function Home() {
               marginTop: "20px",
             }}
           >
-            AgentID — Identity infrastructure for AI agents
+            VouchID — Identity infrastructure for AI agents
           </p>
         </div>
       </div>

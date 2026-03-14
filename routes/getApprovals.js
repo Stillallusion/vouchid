@@ -1,18 +1,10 @@
-import dotenv from "dotenv";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api.js";
-dotenv.config();
-
-const db = new ConvexHttpClient(process.env.CONVEX_URL);
+import { requireAuth, db } from "../lib/auth.js";
 
 function getApprovals(fastify, options, done) {
-  // GET all pending approvals for an org
   fastify.get("/v1/approvals", async (request, reply) => {
-    const authHeader = request.headers["authorization"] || "";
-    const apiKey = authHeader.replace("Bearer ", "");
-    const org = await db.query(api.agents.getOrgByApiKey, { apiKey });
-
-    if (!org) return reply.code(401).send({ error: "Invalid API key" });
+    const org = await requireAuth(request, reply);
+    if (!org) return;
 
     const approvals = await db.query(api.agents.getPendingApprovals, {
       orgId: org.orgId,
@@ -31,16 +23,12 @@ function getApprovals(fastify, options, done) {
     });
   });
 
-  // POST approve or deny
   fastify.post("/v1/approvals/:approvalId/decide", async (request, reply) => {
     const { approvalId } = request.params;
     const { decision } = request.body;
 
-    const authHeader = request.headers["authorization"] || "";
-    const apiKey = authHeader.replace("Bearer ", "");
-    const org = await db.query(api.agents.getOrgByApiKey, { apiKey });
-
-    if (!org) return reply.code(401).send({ error: "Invalid API key" });
+    const org = await requireAuth(request, reply);
+    if (!org) return;
 
     if (!["approved", "denied"].includes(decision)) {
       return reply
@@ -48,10 +36,7 @@ function getApprovals(fastify, options, done) {
         .send({ error: "decision must be 'approved' or 'denied'" });
     }
 
-    await db.mutation(api.agents.decideApproval, {
-      approvalId,
-      decision,
-    });
+    await db.mutation(api.agents.decideApproval, { approvalId, decision });
 
     return reply.send({ decided: true, decision });
   });
