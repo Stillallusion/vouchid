@@ -1,0 +1,18 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "convex": "^1.32.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.7.4",
+    "fastify-swagger": "^5.1.1",
+    "jose": "^6.2.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "scripts": {
+    "dev": "nodemon server"
+  }
+}

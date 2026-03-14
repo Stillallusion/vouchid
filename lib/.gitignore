@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Agent state — contains live JWT tokens, never commit
+agent-state.json
+
+# Logs
+*.log
+
+# Misc
+.DS_Store
