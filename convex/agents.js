@@ -399,3 +399,28 @@ export const updateAgent = mutation({
     return { updated: true };
   },
 });
+
+// ── Get org by orgId ──────────────────────────────────
+export const getOrgById = query({
+  args: { orgId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("organizations")
+      .filter((q) => q.eq(q.field("orgId"), args.orgId))
+      .first();
+  },
+});
+
+// ── Rotate org API key ────────────────────────────────
+export const rotateOrgApiKey = mutation({
+  args: { orgId: v.string(), newApiKey: v.string() },
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query("organizations")
+      .filter((q) => q.eq(q.field("orgId"), args.orgId))
+      .first();
+    if (!org) return null;
+    await ctx.db.patch(org._id, { apiKey: args.newApiKey });
+    return { rotated: true };
+  },
+});

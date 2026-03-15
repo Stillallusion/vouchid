@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "js-cookie": "^3.0.5",
+    "@clerk/nextjs": "^7.0.4",
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3"

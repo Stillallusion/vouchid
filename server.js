@@ -16,6 +16,8 @@ import setPermission from "./routes/setPermission.js";
 import getApprovals from "./routes/getApprovals.js";
 import updateAgent from "./routes/updateAgent.js";
 import refreshAgent from "./routes/refreshAgent.js";
+import getOrg from "./routes/getOrg.js";
+import rotateKey from "./routes/rotateKey.js";
 
 // ── Fail loudly at startup if required env vars are missing ───────────────
 const REQUIRED_ENV = ["JWT_SECRET", "CONVEX_URL", "JWT_ISSUER"];
@@ -47,6 +49,8 @@ fastify.register(setPermission);
 fastify.register(getApprovals);
 fastify.register(updateAgent);
 fastify.register(refreshAgent);
+fastify.register(getOrg);
+fastify.register(rotateKey);
 
 try {
   await fastify.listen({ port: process.env.PORT || 3000, host: "0.0.0.0" });

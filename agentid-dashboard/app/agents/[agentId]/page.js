@@ -2,36 +2,20 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
+import DashNav from "../../components/dashNav";
 
-const STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap');
-  * { box-sizing: border-box; }
-  body { background: #FFFEF0; font-family: 'Space Grotesk', sans-serif; }
-  .b-card { background: #fff; border: 3px solid #0D0D0D; box-shadow: 5px 5px 0 #0D0D0D; }
-  .b-btn { border: 3px solid #0D0D0D; box-shadow: 4px 4px 0 #0D0D0D; font-family: 'Space Grotesk', sans-serif; font-weight: 700; cursor: pointer; transition: all 0.1s ease; text-transform: uppercase; letter-spacing: 0.05em; }
-  .b-btn:hover { transform: translate(2px,2px); box-shadow: 2px 2px 0 #0D0D0D; }
-  .b-btn:active { transform: translate(4px,4px); box-shadow: 0 0 0 #0D0D0D; }
-  .b-input { border: 3px solid #0D0D0D; background: #FFFEF0; font-family: 'DM Mono', monospace; font-size: 13px; padding: 10px 12px; width: 100%; outline: none; }
-  .b-input:focus { box-shadow: 3px 3px 0 #0D0D0D; }
-  .cap-tag { display: inline-flex; align-items: center; gap: 6px; background: #FFE135; border: 2px solid #0D0D0D; box-shadow: 2px 2px 0 #0D0D0D; padding: 4px 10px; font-family: 'DM Mono', monospace; font-size: 12px; }
-  .tab-btn { padding: 10px 20px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; border: 3px solid transparent; transition: all 0.1s; background: none; }
-  .tab-btn.active { background: #FFE135; border-color: #0D0D0D; box-shadow: 3px 3px 0 #0D0D0D; }
-  .audit-row { border-bottom: 2px solid #eee; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; }
-  .audit-row:last-child { border-bottom: none; }
-`;
-
-const actionColors = {
-  "agent.registered": "#00C46A",
-  "agent.verify_success": "#2D6BE4",
-  "agent.verify_fail": "#FF4D4D",
-  "agent.revoked": "#FF4D4D",
-  "agent.updated": "#FF8C00",
+const ACTION_COLORS = {
+  "agent.registered": "var(--green)",
+  "agent.verify_success": "var(--blue)",
+  "agent.verify_fail": "var(--red)",
+  "agent.revoked": "var(--red)",
+  "agent.updated": "var(--orange)",
   "agent.token_refreshed": "#9B59B6",
-  "permission.allowed": "#2D6BE4",
-  "permission.denied": "#FF4D4D",
-  "permission.rate_limited": "#FF8C00",
-  "permission.amount_exceeded": "#FF4D4D",
-  "permission.awaiting_approval": "#FF8C00",
+  "permission.allowed": "var(--blue)",
+  "permission.denied": "var(--red)",
+  "permission.rate_limited": "var(--orange)",
+  "permission.amount_exceeded": "var(--red)",
+  "permission.awaiting_approval": "var(--orange)",
 };
 
 export default function AgentDetail() {
@@ -55,7 +39,6 @@ export default function AgentDetail() {
   const [permApproval, setPermApproval] = useState(false);
   const [permSaving, setPermSaving] = useState(false);
   const [permMsg, setPermMsg] = useState("");
-  const [permissions, setPermissions] = useState([]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [newToken, setNewToken] = useState(null);
@@ -71,12 +54,10 @@ export default function AgentDetail() {
       fetch(`/api/v1/agents/${agentId}/audit`),
       fetch(`/api/v1/agents/${agentId}/reputation`),
     ]);
-
     if (aRes.status === 401) {
-      router.push("/");
+      router.push("/setup");
       return;
     }
-
     const [aData, auData, rData] = await Promise.all([
       aRes.json(),
       auRes.json(),
@@ -96,9 +77,9 @@ export default function AgentDetail() {
       method: "DELETE",
     });
     if (res.ok) {
-      setAgent((prev) => ({ ...prev, revoked: true }));
-      setAudit((prev) => [
-        ...prev,
+      setAgent((p) => ({ ...p, revoked: true }));
+      setAudit((p) => [
+        ...p,
         { action: "agent.revoked", created_at: Date.now() },
       ]);
     }
@@ -118,12 +99,8 @@ export default function AgentDetail() {
     setSaving(false);
     if (res.ok) {
       setSaveMsg("Saved!");
-      setAgent((prev) => ({
-        ...prev,
-        capabilities: editCaps,
-        model: editModel,
-      }));
-      setTimeout(() => setSaveMsg(""), 2000);
+      setAgent((p) => ({ ...p, capabilities: editCaps, model: editModel }));
+      setTimeout(() => setSaveMsg(""), 2500);
     }
   };
 
@@ -144,31 +121,8 @@ export default function AgentDetail() {
     setPermSaving(false);
     if (res.ok) {
       setPermMsg("Policy saved!");
-      setPermissions((prev) => {
-        const exists = prev.find((p) => p.capability === permCap);
-        if (exists)
-          return prev.map((p) =>
-            p.capability === permCap
-              ? {
-                  ...p,
-                  rate_limit: permRate,
-                  max_amount: permAmount,
-                  require_human_approval: permApproval,
-                }
-              : p,
-          );
-        return [
-          ...prev,
-          {
-            capability: permCap,
-            rate_limit: permRate,
-            max_amount: permAmount,
-            require_human_approval: permApproval,
-          },
-        ];
-      });
-      setTimeout(() => setPermMsg(""), 2000);
-    }
+      setTimeout(() => setPermMsg(""), 2500);
+    } else setPermMsg("Failed to save policy");
   };
 
   const handleRefresh = async () => {
@@ -183,784 +137,726 @@ export default function AgentDetail() {
     }
   };
 
-  const scoreColor = (score) => {
-    if (!score && score !== 0) return "#888";
-    if (score >= 0.8) return "#00C46A";
-    if (score >= 0.6) return "#FF8C00";
-    return "#FF4D4D";
-  };
+  const scoreColor = (s) =>
+    s >= 0.8 ? "var(--green)" : s >= 0.6 ? "var(--orange)" : "var(--red)";
+
+  const TABS = ["overview", "permissions", "edit", "audit"];
 
   if (loading)
     return (
-      <>
-        <style>{STYLES}</style>
+      <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+        <DashNav />
         <div
           style={{
-            minHeight: "100vh",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#FFFEF0",
+            height: "60vh",
           }}
         >
-          <div className="b-card" style={{ padding: "24px 40px" }}>
-            <p style={{ fontFamily: "'DM Mono', monospace" }}>
-              Loading agent...
-            </p>
+          <div className="card" style={{ padding: "24px 40px" }}>
+            <p className="mono">Loading agent...</p>
           </div>
         </div>
-      </>
+      </div>
     );
 
   if (!agent)
     return (
-      <>
-        <style>{STYLES}</style>
+      <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+        <DashNav />
         <div
           style={{
-            minHeight: "100vh",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#FFFEF0",
+            height: "60vh",
           }}
         >
-          <div className="b-card" style={{ padding: "24px 40px" }}>
-            <p style={{ fontFamily: "'DM Mono', monospace", color: "#FF4D4D" }}>
+          <div className="card" style={{ padding: "24px 40px" }}>
+            <p className="mono" style={{ color: "var(--red)" }}>
               Agent not found
             </p>
           </div>
         </div>
-      </>
+      </div>
     );
 
   return (
-    <>
-      <style>{STYLES}</style>
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "#FFFEF0",
-          backgroundImage: "radial-gradient(#0D0D0D18 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      >
-        <div
-          style={{
-            borderBottom: "3px solid #0D0D0D",
-            background: "#FFE135",
-            padding: "0 32px",
-          }}
-        >
-          <div
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      <DashNav />
+
+      <div className="container" style={{ padding: "40px 24px" }}>
+        {/* Breadcrumb */}
+        <div style={{ marginBottom: "24px" }} className="fade-up">
+          <Link
+            href="/dashboard"
+            className="btn btn-sm"
             style={{
-              maxWidth: "1000px",
-              margin: "0 auto",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              height: "60px",
+              boxShadow: "none",
+              border: "none",
+              padding: "4px 0",
+              fontWeight: "600",
             }}
           >
-            <span
-              style={{
-                fontFamily: "'Bebas Neue', sans-serif",
-                fontSize: "28px",
-                letterSpacing: "3px",
-              }}
-            >
-              VOUCHID
-            </span>
-            <Link
-              href="/dashboard"
-              className="b-btn"
-              style={{
-                padding: "8px 16px",
-                fontSize: "13px",
-                background: "#fff",
-                textDecoration: "none",
-                color: "#0D0D0D",
-              }}
-            >
-              ← Dashboard
-            </Link>
-          </div>
+            ← All agents
+          </Link>
         </div>
 
+        {/* Agent header */}
         <div
-          style={{ maxWidth: "1000px", margin: "0 auto", padding: "40px 32px" }}
+          className="card card-lg fade-up-1"
+          style={{ marginBottom: "24px" }}
         >
+          {/* Top bar */}
           <div
-            className="b-card"
-            style={{ padding: "28px 32px", marginBottom: "28px" }}
+            style={{
+              background: agent.revoked ? "var(--red)" : "var(--yellow)",
+              borderBottom: "var(--border)",
+              padding: "20px 28px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "16px",
+            }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                flexWrap: "wrap",
-                gap: "16px",
-              }}
-            >
-              <div>
-                <div
+            <div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "12px" }}
+              >
+                <h1
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    marginBottom: "6px",
+                    fontSize: "32px",
+                    fontWeight: "800",
+                    letterSpacing: "-0.5px",
+                    color: agent.revoked ? "var(--white)" : "var(--black)",
                   }}
                 >
-                  <h1
+                  {agent.name}
+                </h1>
+                <span
+                  className={`tag ${agent.revoked ? "tag-gray" : "tag-green"}`}
+                  style={{
+                    background: agent.revoked
+                      ? "rgba(0,0,0,0.2)"
+                      : "var(--black)",
+                    color: "var(--white)",
+                    border: "2px solid rgba(255,255,255,0.3)",
+                  }}
+                >
+                  {agent.revoked ? "Revoked" : "Active"}
+                </span>
+              </div>
+              <p
+                className="mono"
+                style={{
+                  fontSize: "12px",
+                  color: agent.revoked ? "rgba(255,255,255,0.7)" : "#555",
+                  marginTop: "4px",
+                }}
+              >
+                {agent.agent_id}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing || agent.revoked}
+                className="btn btn-sm"
+                style={{ background: "var(--white)" }}
+              >
+                {refreshing ? "Refreshing..." : "↻ Refresh token"}
+              </button>
+              {!agent.revoked && (
+                <button onClick={handleRevoke} className="btn btn-sm btn-red">
+                  Revoke
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* New token display */}
+          {newToken && (
+            <div
+              style={{
+                background: "var(--black)",
+                borderBottom: "var(--border)",
+                padding: "16px 28px",
+              }}
+            >
+              <p
+                className="mono"
+                style={{
+                  fontSize: "11px",
+                  color: "var(--yellow)",
+                  fontWeight: "700",
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                New token — copy now
+              </p>
+              <p
+                className="mono"
+                style={{
+                  fontSize: "12px",
+                  color: "#aaa",
+                  wordBreak: "break-all",
+                  marginBottom: "12px",
+                  lineHeight: 1.6,
+                }}
+              >
+                {newToken}
+              </p>
+              <button
+                className="btn btn-sm btn-yellow"
+                onClick={() => {
+                  navigator.clipboard.writeText(newToken);
+                  setTokenCopied(true);
+                  setTimeout(() => setTokenCopied(false), 2000);
+                }}
+              >
+                {tokenCopied ? "✓ Copied" : "Copy token"}
+              </button>
+            </div>
+          )}
+
+          {/* Reputation stats */}
+          {reputation && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4,1fr)",
+                borderBottom: "var(--border)",
+              }}
+            >
+              {[
+                {
+                  label: "Trust Score",
+                  value: `${((reputation.trustScore || 0) * 100).toFixed(0)}%`,
+                  color: scoreColor(reputation.trustScore || 0),
+                },
+                {
+                  label: "Trust Level",
+                  value: (reputation.trustLevel || "untrusted").toUpperCase(),
+                  color: "var(--black)",
+                },
+                {
+                  label: "Verifications",
+                  value: `${reputation.successfulVerifications || 0}✓ ${reputation.failedVerifications || 0}✗`,
+                  color: "var(--black)",
+                },
+                {
+                  label: "Success Rate",
+                  value: `${reputation.successRate ?? 100}%`,
+                  color: "var(--black)",
+                },
+              ].map((s, i) => (
+                <div
+                  key={s.label}
+                  style={{
+                    padding: "20px 24px",
+                    borderRight: i < 3 ? "var(--border)" : "none",
+                    minWidth: 0,
+                  }}
+                >
+                  <p
                     style={{
-                      fontFamily: "'Bebas Neue', sans-serif",
-                      fontSize: "40px",
-                      letterSpacing: "2px",
+                      fontSize: "26px",
+                      fontWeight: "800",
+                      fontFamily: "var(--font-mono)",
+                      color: s.color,
                       lineHeight: 1,
                     }}
                   >
-                    {agent.name}
-                  </h1>
-                  <span
+                    {s.value}
+                  </p>
+                  <p
                     style={{
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: "12px",
-                      fontWeight: "600",
+                      fontSize: "10px",
+                      fontWeight: "700",
                       textTransform: "uppercase",
-                      background: agent.revoked ? "#FF4D4D" : "#00C46A",
-                      border: "2px solid #0D0D0D",
-                      padding: "4px 10px",
-                      boxShadow: "2px 2px 0 #0D0D0D",
+                      letterSpacing: "0.1em",
+                      color: "var(--gray)",
+                      marginTop: "4px",
                     }}
                   >
-                    {agent.revoked ? "Revoked" : "Active"}
-                  </span>
+                    {s.label}
+                  </p>
                 </div>
-                <p
-                  style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "12px",
-                    color: "#777",
-                  }}
-                >
-                  {agent.agent_id}
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                <button
-                  className="b-btn"
-                  onClick={handleRefresh}
-                  disabled={refreshing || agent.revoked}
-                  style={{
-                    padding: "10px 18px",
-                    fontSize: "13px",
-                    background: "#fff",
-                    opacity: agent.revoked ? 0.5 : 1,
-                  }}
-                >
-                  {refreshing ? "Refreshing..." : "Refresh Token"}
-                </button>
-                {!agent.revoked && (
-                  <button
-                    className="b-btn"
-                    onClick={handleRevoke}
-                    style={{
-                      padding: "10px 18px",
-                      fontSize: "13px",
-                      background: "#FF4D4D",
-                      color: "#fff",
-                    }}
-                  >
-                    Revoke
-                  </button>
-                )}
-              </div>
+              ))}
             </div>
+          )}
 
-            {newToken && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  background: "#0D0D0D",
-                  border: "3px solid #0D0D0D",
-                  padding: "14px 16px",
-                }}
-              >
-                <p
-                  style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "11px",
-                    color: "#FFE135",
-                    marginBottom: "8px",
-                    fontWeight: "600",
-                  }}
-                >
-                  NEW TOKEN — Copy now
-                </p>
-                <p
-                  style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "11px",
-                    color: "#aaa",
-                    wordBreak: "break-all",
-                    marginBottom: "10px",
-                  }}
-                >
-                  {newToken}
-                </p>
-                <button
-                  className="b-btn"
-                  onClick={() => {
-                    navigator.clipboard.writeText(newToken);
-                    setTokenCopied(true);
-                    setTimeout(() => setTokenCopied(false), 2000);
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "12px",
-                    background: tokenCopied ? "#00C46A" : "#FFE135",
-                  }}
-                >
-                  {tokenCopied ? "✓ Copied" : "Copy Token"}
-                </button>
-              </div>
-            )}
-
-            {reputation && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4,1fr)",
-                  gap: "12px",
-                }}
-              >
-                {[
-                  {
-                    label: "Trust Score",
-                    value: `${((reputation.trustScore || 0) * 100).toFixed(0)}%`,
-                    color: scoreColor(reputation.trustScore),
-                  },
-                  {
-                    label: "Trust Level",
-                    value: (reputation.trustLevel || "untrusted").toUpperCase(),
-                    color: "#0D0D0D",
-                  },
-                  {
-                    label: "Verifications",
-                    value: `${reputation.successfulVerifications || 0}✓ ${reputation.failedVerifications || 0}✗`,
-                    color: "#0D0D0D",
-                  },
-                  {
-                    label: "Success Rate",
-                    value: `${reputation.successRate ?? 100}%`,
-                    color: "#0D0D0D",
-                  },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    style={{
-                      border: "2px solid #0D0D0D",
-                      padding: "12px 14px",
-                      background: "#FFFEF0",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontFamily: "'Bebas Neue', sans-serif",
-                        fontSize: "28px",
-                        color: s.color,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {s.value}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        marginTop: "2px",
-                        color: "#666",
-                      }}
-                    >
-                      {s.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
+          {/* Tabs — 4 columns matching reputation grid exactly */}
           <div
             style={{
-              display: "flex",
-              gap: "4px",
-              marginBottom: "24px",
-              borderBottom: "3px solid #0D0D0D",
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              borderBottom: "var(--border)",
             }}
           >
-            {["overview", "permissions", "edit", "audit"].map((t) => (
+            {TABS.map((t, i) => (
               <button
                 key={t}
-                className={`tab-btn ${tab === t ? "active" : ""}`}
                 onClick={() => setTab(t)}
+                style={{
+                  padding: "14px",
+                  fontFamily: "var(--font-display)",
+                  fontWeight: "700",
+                  fontSize: "13px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  cursor: "pointer",
+                  border: "none",
+                  borderRight: i < TABS.length - 1 ? "var(--border)" : "none",
+                  background: tab === t ? "var(--yellow)" : "var(--white)",
+                  color: "var(--black)",
+                  transition: "background 0.1s",
+                }}
               >
                 {t}
               </button>
             ))}
           </div>
 
-          {tab === "overview" && (
-            <div className="b-card" style={{ padding: "28px 32px" }}>
-              <h3
-                style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: "24px",
-                  letterSpacing: "1px",
-                  marginBottom: "20px",
-                }}
-              >
-                Agent Details
-              </h3>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "16px",
-                  marginBottom: "24px",
-                }}
-              >
-                {[
-                  { label: "Model", value: agent.model || "unknown" },
-                  { label: "Org ID", value: agent.org_id },
-                  {
-                    label: "Expires",
-                    value: new Date(
-                      agent.expires_at || agent.expiresAt,
-                    ).toLocaleDateString(),
-                  },
-                  {
-                    label: "Registered",
-                    value: new Date(
-                      agent.created_at || agent._creationTime,
-                    ).toLocaleDateString(),
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    style={{
-                      border: "2px solid #0D0D0D",
-                      padding: "14px 16px",
-                      background: "#FFFEF0",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        color: "#666",
-                        marginBottom: "4px",
-                      }}
-                    >
-                      {item.label}
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: "'DM Mono', monospace",
-                        fontSize: "13px",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {item.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <p
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  color: "#666",
-                  marginBottom: "10px",
-                }}
-              >
-                Capabilities
-              </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {(agent.capabilities || []).map((cap) => (
-                  <span key={cap} className="cap-tag">
-                    {cap}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {tab === "permissions" && (
-            <div className="b-card" style={{ padding: "28px 32px" }}>
-              <h3
-                style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: "24px",
-                  letterSpacing: "1px",
-                  marginBottom: "8px",
-                }}
-              >
-                Permission Policy
-              </h3>
-              <p
-                style={{
-                  fontFamily: "'DM Mono', monospace",
-                  fontSize: "12px",
-                  color: "#666",
-                  marginBottom: "24px",
-                }}
-              >
-                Set limits on what this agent can do per capability.
-              </p>
-              <div style={{ marginBottom: "20px" }}>
-                <label
-                  style={{
-                    fontWeight: "700",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    display: "block",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Capability *
-                </label>
-                <input
-                  className="b-input"
-                  value={permCap}
-                  onChange={(e) => setPermCap(e.target.value)}
-                  placeholder="write:payments"
-                />
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "16px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      display: "block",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    Rate Limit (per hour)
-                  </label>
-                  <input
-                    className="b-input"
-                    type="number"
-                    value={permRate}
-                    onChange={(e) => setPermRate(e.target.value)}
-                    placeholder="10"
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      fontWeight: "700",
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      display: "block",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    Max Amount ($)
-                  </label>
-                  <input
-                    className="b-input"
-                    type="number"
-                    value={permAmount}
-                    onChange={(e) => setPermAmount(e.target.value)}
-                    placeholder="500"
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  marginBottom: "24px",
-                  padding: "14px 16px",
-                  border: "3px solid #0D0D0D",
-                  background: permApproval ? "#FFE135" : "#fff",
-                  cursor: "pointer",
-                }}
-                onClick={() => setPermApproval((p) => !p)}
-              >
+          {/* Tab content */}
+          <div style={{ padding: "28px" }}>
+            {/* Overview */}
+            {tab === "overview" && (
+              <div>
                 <div
                   style={{
-                    width: "22px",
-                    height: "22px",
-                    border: "3px solid #0D0D0D",
-                    background: permApproval ? "#0D0D0D" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "12px",
+                    marginBottom: "24px",
                   }}
                 >
-                  {permApproval && (
-                    <span
+                  {[
+                    { label: "Model", value: agent.model || "unknown" },
+                    { label: "Org ID", value: agent.org_id },
+                    {
+                      label: "Expires",
+                      value: new Date(
+                        agent.expires_at || agent.expiresAt,
+                      ).toLocaleDateString(),
+                    },
+                    {
+                      label: "Registered",
+                      value: new Date(
+                        agent.created_at || agent._creationTime,
+                      ).toLocaleDateString(),
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
                       style={{
-                        color: "#FFE135",
-                        fontWeight: "900",
-                        fontSize: "14px",
+                        border: "var(--border)",
+                        padding: "14px 16px",
+                        background: "var(--bg)",
                       }}
                     >
-                      ✓
-                    </span>
-                  )}
+                      <p
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em",
+                          color: "var(--gray)",
+                          marginBottom: "4px",
+                        }}
+                      >
+                        {item.label}
+                      </p>
+                      <p
+                        className="mono"
+                        style={{ fontSize: "13px", fontWeight: "600" }}
+                      >
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <p style={{ fontWeight: "700", fontSize: "14px" }}>
-                    Require Human Approval
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: "'DM Mono', monospace",
-                      fontSize: "11px",
-                      color: "#666",
-                    }}
-                  >
-                    Every action with this capability must be manually approved
-                  </p>
-                </div>
-              </div>
-              {permMsg && (
-                <div
+                <p
                   style={{
-                    background:
-                      permMsg === "Policy saved!" ? "#00C46A22" : "#FF4D4D22",
-                    border: `2px solid ${permMsg === "Policy saved!" ? "#00C46A" : "#FF4D4D"}`,
-                    padding: "10px 14px",
-                    marginBottom: "16px",
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                  }}
-                >
-                  {permMsg}
-                </div>
-              )}
-              <button
-                className="b-btn"
-                onClick={handleSetPermission}
-                disabled={permSaving}
-                style={{
-                  padding: "12px 28px",
-                  background: "#FFE135",
-                  fontSize: "14px",
-                  opacity: permSaving ? 0.6 : 1,
-                }}
-              >
-                {permSaving ? "Saving..." : "Save Policy"}
-              </button>
-            </div>
-          )}
-
-          {tab === "edit" && (
-            <div className="b-card" style={{ padding: "28px 32px" }}>
-              <h3
-                style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: "24px",
-                  letterSpacing: "1px",
-                  marginBottom: "8px",
-                }}
-              >
-                Edit Agent
-              </h3>
-              <p
-                style={{
-                  fontFamily: "'DM Mono', monospace",
-                  fontSize: "12px",
-                  color: "#666",
-                  marginBottom: "24px",
-                }}
-              >
-                Updating capabilities does not rotate the token — use Refresh
-                Token to issue a new JWT.
-              </p>
-              <div style={{ marginBottom: "20px" }}>
-                <label
-                  style={{
+                    fontSize: "10px",
                     fontWeight: "700",
-                    fontSize: "11px",
                     textTransform: "uppercase",
                     letterSpacing: "0.1em",
-                    display: "block",
-                    marginBottom: "8px",
-                  }}
-                >
-                  Model
-                </label>
-                <input
-                  className="b-input"
-                  value={editModel}
-                  onChange={(e) => setEditModel(e.target.value)}
-                  placeholder="gpt-4o"
-                />
-              </div>
-              <div style={{ marginBottom: "24px" }}>
-                <label
-                  style={{
-                    fontWeight: "700",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    display: "block",
-                    marginBottom: "8px",
+                    color: "var(--gray)",
+                    marginBottom: "10px",
                   }}
                 >
                   Capabilities
-                </label>
-                <div
-                  style={{ display: "flex", gap: "8px", marginBottom: "10px" }}
+                </p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {(agent.capabilities || []).map((cap) => (
+                    <span key={cap} className="tag">
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Permissions */}
+            {tab === "permissions" && (
+              <div>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "var(--gray)",
+                    marginBottom: "24px",
+                    lineHeight: 1.6,
+                  }}
                 >
+                  Set rate limits, amount caps, and approval requirements per
+                  capability.
+                </p>
+                <div style={{ marginBottom: "20px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Capability *
+                  </label>
                   <input
-                    className="b-input"
-                    value={capInput}
-                    onChange={(e) => setCapInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                    className="input"
+                    value={permCap}
+                    onChange={(e) => setPermCap(e.target.value)}
+                    placeholder="write:payments"
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "16px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Rate limit (per hour)
+                    </label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={permRate}
+                      onChange={(e) => setPermRate(e.target.value)}
+                      placeholder="10"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        display: "block",
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Max amount ($)
+                    </label>
+                    <input
+                      className="input"
+                      type="number"
+                      value={permAmount}
+                      onChange={(e) => setPermAmount(e.target.value)}
+                      placeholder="500"
+                    />
+                  </div>
+                </div>
+
+                {/* Human approval toggle */}
+                <div
+                  onClick={() => setPermApproval((p) => !p)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "14px",
+                    padding: "16px 20px",
+                    border: "var(--border)",
+                    background: permApproval ? "var(--yellow)" : "var(--white)",
+                    cursor: "pointer",
+                    marginBottom: "20px",
+                    transition: "background 0.1s",
+                    boxShadow: permApproval ? "var(--shadow)" : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      border: "var(--border)",
+                      background: permApproval ? "var(--black)" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition: "background 0.1s",
+                    }}
+                  >
+                    {permApproval && (
+                      <span
+                        style={{
+                          color: "var(--yellow)",
+                          fontWeight: "900",
+                          fontSize: "14px",
+                          lineHeight: 1,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: "700", fontSize: "14px" }}>
+                      Require human approval
+                    </p>
+                    <p
+                      className="mono"
+                      style={{ fontSize: "11px", color: "var(--gray)" }}
+                    >
+                      Every action must be manually approved before running
+                    </p>
+                  </div>
+                </div>
+
+                {permMsg && (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      marginBottom: "16px",
+                      border: "var(--border-2)",
+                      background: permMsg.includes("saved")
+                        ? "#E8FFF4"
+                        : "#FFF0F0",
+                      borderColor: permMsg.includes("saved")
+                        ? "var(--green)"
+                        : "var(--red)",
+                    }}
+                  >
+                    <p
+                      className="mono"
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "700",
+                        color: permMsg.includes("saved")
+                          ? "var(--green)"
+                          : "var(--red)",
+                      }}
+                    >
+                      {permMsg}
+                    </p>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSetPermission}
+                  disabled={permSaving}
+                  className="btn btn-yellow"
+                >
+                  {permSaving ? "Saving..." : "Save policy →"}
+                </button>
+              </div>
+            )}
+
+            {/* Edit */}
+            {tab === "edit" && (
+              <div>
+                <div
+                  style={{
+                    background: "var(--bg)",
+                    border: "var(--border)",
+                    padding: "12px 16px",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <p
+                    className="mono"
+                    style={{ fontSize: "12px", color: "var(--gray)" }}
+                  >
+                    Updating capabilities here does <strong>not</strong> rotate
+                    the token. Use Refresh Token to issue a new JWT with updated
+                    capabilities.
+                  </p>
+                </div>
+                <div style={{ marginBottom: "20px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Model
+                  </label>
+                  <input
+                    className="input"
+                    value={editModel}
+                    onChange={(e) => setEditModel(e.target.value)}
+                    placeholder="gpt-4o"
+                  />
+                </div>
+                <div style={{ marginBottom: "24px" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    Capabilities
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <input
+                      className="input"
+                      value={capInput}
+                      onChange={(e) => setCapInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const v = capInput.trim();
+                          if (v && !editCaps.includes(v)) {
+                            setEditCaps((p) => [...p, v]);
+                            setCapInput("");
+                          }
+                        }
+                      }}
+                      placeholder="add:capability"
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      className="btn btn-black btn-sm"
+                      onClick={() => {
                         const v = capInput.trim();
                         if (v && !editCaps.includes(v)) {
                           setEditCaps((p) => [...p, v]);
                           setCapInput("");
                         }
-                      }
-                    }}
-                    placeholder="add:capability"
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    className="b-btn"
-                    onClick={() => {
-                      const v = capInput.trim();
-                      if (v && !editCaps.includes(v)) {
-                        setEditCaps((p) => [...p, v]);
-                        setCapInput("");
-                      }
-                    }}
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
+                  >
+                    {editCaps.map((cap) => (
+                      <button
+                        key={cap}
+                        onClick={() =>
+                          setEditCaps((p) => p.filter((c) => c !== cap))
+                        }
+                        className="tag"
+                        style={{ cursor: "pointer" }}
+                      >
+                        {cap} <span style={{ fontWeight: "900" }}>×</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {saveMsg && (
+                  <div
                     style={{
-                      padding: "10px 16px",
-                      background: "#0D0D0D",
-                      color: "#FFE135",
-                      fontSize: "13px",
+                      background: "#E8FFF4",
+                      border: "2px solid var(--green)",
+                      padding: "10px 14px",
+                      marginBottom: "16px",
                     }}
                   >
-                    Add
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {editCaps.map((cap) => (
-                    <span
-                      key={cap}
-                      className="cap-tag"
-                      style={{ cursor: "pointer" }}
-                      onClick={() =>
-                        setEditCaps((p) => p.filter((c) => c !== cap))
-                      }
+                    <p
+                      className="mono"
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "700",
+                        color: "var(--green)",
+                      }}
                     >
-                      {cap} <span style={{ fontWeight: "700" }}>×</span>
-                    </span>
-                  ))}
-                </div>
+                      ✓ {saveMsg}
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  className="btn btn-yellow"
+                >
+                  {saving ? "Saving..." : "Save changes →"}
+                </button>
               </div>
-              {saveMsg && (
-                <div
-                  style={{
-                    background: "#00C46A22",
-                    border: "2px solid #00C46A",
-                    padding: "10px 14px",
-                    marginBottom: "16px",
-                    fontFamily: "'DM Mono', monospace",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                  }}
-                >
-                  ✓ {saveMsg}
-                </div>
-              )}
-              <button
-                className="b-btn"
-                onClick={handleSaveEdit}
-                disabled={saving}
-                style={{
-                  padding: "12px 28px",
-                  background: "#FFE135",
-                  fontSize: "14px",
-                  opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          )}
+            )}
 
-          {tab === "audit" && (
-            <div className="b-card" style={{ padding: "28px 32px" }}>
-              <h3
-                style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
-                  fontSize: "24px",
-                  letterSpacing: "1px",
-                  marginBottom: "20px",
-                }}
-              >
-                Audit Log{" "}
-                <span
-                  style={{
-                    fontFamily: "'DM Mono', monospace",
-                    fontWeight: "400",
-                    fontSize: "16px",
-                    color: "#888",
-                  }}
-                >
-                  ({audit.length} events)
-                </span>
-              </h3>
-              {audit.length === 0 ? (
+            {/* Audit */}
+            {tab === "audit" && (
+              <div>
                 <p
                   style={{
-                    fontFamily: "'DM Mono', monospace",
+                    fontWeight: "700",
                     fontSize: "13px",
-                    color: "#888",
+                    color: "var(--gray)",
+                    marginBottom: "20px",
                   }}
                 >
-                  No events recorded yet
+                  {audit.length} events recorded
                 </p>
-              ) : (
-                <div>
-                  {[...audit].reverse().map((event, i) => (
-                    <div key={i} className="audit-row">
+                {audit.length === 0 ? (
+                  <p
+                    className="mono"
+                    style={{ color: "var(--gray)", fontSize: "13px" }}
+                  >
+                    No events yet
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0",
+                    }}
+                  >
+                    {[...audit].reverse().map((event, i) => (
                       <div
+                        key={i}
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
+                          alignItems: "flex-start",
+                          gap: "14px",
+                          padding: "14px 0",
+                          borderBottom:
+                            i < audit.length - 1 ? "1px solid #eee" : "none",
                         }}
                       >
                         <div
@@ -968,27 +864,26 @@ export default function AgentDetail() {
                             width: "10px",
                             height: "10px",
                             borderRadius: "50%",
-                            border: "2px solid #0D0D0D",
-                            background: actionColors[event.action] || "#888",
+                            border: "var(--border-2)",
+                            background:
+                              ACTION_COLORS[event.action] || "var(--gray)",
                             flexShrink: 0,
+                            marginTop: "4px",
                           }}
                         />
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <span
-                            style={{
-                              fontFamily: "'DM Mono', monospace",
-                              fontSize: "13px",
-                              fontWeight: "500",
-                            }}
+                            className="mono"
+                            style={{ fontSize: "13px", fontWeight: "600" }}
                           >
                             {event.action}
                           </span>
                           {event.detail && (
                             <p
+                              className="mono"
                               style={{
-                                fontFamily: "'DM Mono', monospace",
                                 fontSize: "11px",
-                                color: "#888",
+                                color: "var(--gray)",
                                 marginTop: "2px",
                               }}
                             >
@@ -996,26 +891,25 @@ export default function AgentDetail() {
                             </p>
                           )}
                         </div>
+                        <span
+                          className="mono"
+                          style={{
+                            fontSize: "11px",
+                            color: "#bbb",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {new Date(event.created_at).toLocaleString()}
+                        </span>
                       </div>
-                      <span
-                        style={{
-                          fontFamily: "'DM Mono', monospace",
-                          fontSize: "11px",
-                          color: "#999",
-                          flexShrink: 0,
-                          marginLeft: "16px",
-                        }}
-                      >
-                        {new Date(event.created_at).toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

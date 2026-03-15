@@ -1,11 +1,9 @@
 import { cookies } from "next/headers";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 
-// Catch-all proxy: /api/v1/[...path] → backend /v1/[...path]
-// Reads the httpOnly session cookie server-side and injects the Authorization header.
-// The API key never touches the browser.
 export async function GET(request, { params }) {
   return proxy(request, params, "GET");
 }
@@ -23,18 +21,23 @@ export async function PUT(request, { params }) {
 }
 
 async function proxy(request, params, method) {
+  // Must be signed into Clerk
+  const { userId } = await auth();
+  if (!userId)
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  // Must have org API key cookie
   const cookieStore = await cookies();
   const apiKey = cookieStore.get("vouchid_session")?.value;
-
-  if (!apiKey) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
+  if (!apiKey)
+    return NextResponse.json(
+      { error: "No org connected — visit /setup" },
+      { status: 401 },
+    );
 
   const resolvedParams = await params;
   const pathSegments = resolvedParams.path ?? [];
   const backendPath = `/v1/${pathSegments.join("/")}`;
-
-  // Forward query string if present
   const { search } = new URL(request.url);
   const url = `${BACKEND}${backendPath}${search}`;
 
@@ -54,6 +57,5 @@ async function proxy(request, params, method) {
 
   const backendRes = await fetch(url, { method, headers, body });
   const data = await backendRes.json();
-
   return NextResponse.json(data, { status: backendRes.status });
 }
