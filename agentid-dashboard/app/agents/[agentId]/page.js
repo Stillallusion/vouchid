@@ -30,6 +30,9 @@ export default function AgentDetail() {
   const [editCaps, setEditCaps] = useState([]);
   const [editModel, setEditModel] = useState("");
   const [capInput, setCapInput] = useState("");
+  const [capMode, setCapMode] = useState("single"); // "single" | "bulk"
+  const [bulkInput, setBulkInput] = useState("");
+  const [bulkError, setBulkError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
 
@@ -98,9 +101,21 @@ export default function AgentDetail() {
     });
     setSaving(false);
     if (res.ok) {
-      setSaveMsg("Saved!");
-      setAgent((p) => ({ ...p, capabilities: editCaps, model: editModel }));
-      setTimeout(() => setSaveMsg(""), 2500);
+      // Refetch from server so the UI reflects the actual saved state
+      const updated = await fetch(`/api/v1/agents/${agentId}`);
+      if (updated.ok) {
+        const data = await updated.json();
+        setAgent((p) => ({ ...p, ...data }));
+        setEditCaps(data.capabilities || []);
+      }
+      setSaveMsg(
+        "Saved! Token still has old capabilities — click Refresh Token to issue a new JWT.",
+      );
+      setTimeout(() => setSaveMsg(""), 6000);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      setSaveMsg(`Error: ${err.error || "Save failed"}`);
+      setTimeout(() => setSaveMsg(""), 4000);
     }
   };
 
@@ -723,56 +738,213 @@ export default function AgentDetail() {
                   />
                 </div>
                 <div style={{ marginBottom: "24px" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontWeight: "700",
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    Capabilities
-                  </label>
+                  {/* Capabilities header with mode toggle */}
                   <div
                     style={{
                       display: "flex",
-                      gap: "8px",
-                      marginBottom: "10px",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
                     }}
                   >
-                    <input
-                      className="input"
-                      value={capInput}
-                      onChange={(e) => setCapInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                    <label
+                      style={{
+                        fontWeight: "700",
+                        fontSize: "11px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                      }}
+                    >
+                      Capabilities
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        border: "var(--border)",
+                        boxShadow: "2px 2px 0 var(--black)",
+                      }}
+                    >
+                      {["single", "bulk"].map((m, i) => (
+                        <button
+                          key={m}
+                          onClick={() => {
+                            setCapMode(m);
+                            setBulkError("");
+                          }}
+                          style={{
+                            padding: "4px 12px",
+                            fontSize: "11px",
+                            fontFamily: "var(--font-display)",
+                            fontWeight: "700",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                            cursor: "pointer",
+                            border: "none",
+                            borderRight: i === 0 ? "var(--border)" : "none",
+                            background:
+                              capMode === m ? "var(--black)" : "var(--white)",
+                            color:
+                              capMode === m ? "var(--yellow)" : "var(--black)",
+                            transition: "background 0.1s",
+                          }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {capMode === "single" ? (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      <input
+                        className="input"
+                        value={capInput}
+                        onChange={(e) => setCapInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const v = capInput.trim();
+                            if (v && !editCaps.includes(v)) {
+                              setEditCaps((p) => [...p, v]);
+                              setCapInput("");
+                            }
+                          }
+                        }}
+                        placeholder="read:data"
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        className="btn btn-black btn-sm"
+                        onClick={() => {
                           const v = capInput.trim();
                           if (v && !editCaps.includes(v)) {
                             setEditCaps((p) => [...p, v]);
                             setCapInput("");
                           }
-                        }
-                      }}
-                      placeholder="add:capability"
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      className="btn btn-black btn-sm"
-                      onClick={() => {
-                        const v = capInput.trim();
-                        if (v && !editCaps.includes(v)) {
-                          setEditCaps((p) => [...p, v]);
-                          setCapInput("");
-                        }
-                      }}
-                    >
-                      Add
-                    </button>
-                  </div>
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: "10px" }}>
+                      <p
+                        className="mono"
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--gray)",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Paste an array or comma-separated list — e.g.
+                        ["read:data","write:payments"] or read:data,
+                        write:payments
+                      </p>
+                      <textarea
+                        className="input"
+                        value={bulkInput}
+                        onChange={(e) => setBulkInput(e.target.value)}
+                        placeholder={`["read:data", "write:payments", "approve:refunds"]`}
+                        style={{
+                          minHeight: "80px",
+                          resize: "vertical",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: "13px",
+                        }}
+                      />
+                      {bulkError && (
+                        <p
+                          className="mono"
+                          style={{
+                            fontSize: "11px",
+                            color: "var(--red)",
+                            fontWeight: "700",
+                            marginTop: "4px",
+                          }}
+                        >
+                          ⚠ {bulkError}
+                        </p>
+                      )}
+                      <button
+                        className="btn btn-black btn-sm"
+                        style={{ marginTop: "8px" }}
+                        onClick={() => {
+                          setBulkError("");
+                          const raw = bulkInput.trim();
+                          let parsed = [];
+                          try {
+                            // Try JSON array first
+                            const json = JSON.parse(raw);
+                            if (!Array.isArray(json))
+                              throw new Error("not an array");
+                            parsed = json
+                              .map((s) => String(s).trim())
+                              .filter(Boolean);
+                          } catch {
+                            // Fall back to comma-separated
+                            parsed = raw
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                          }
+                          if (parsed.length === 0) {
+                            setBulkError(
+                              "No capabilities found — check your format",
+                            );
+                            return;
+                          }
+                          const invalid = parsed.filter(
+                            (c) => !/^[\w-]+:[\w:*-]+$/.test(c),
+                          );
+                          if (invalid.length > 0) {
+                            setBulkError(
+                              `Invalid format: ${invalid.join(", ")} — use scope:action`,
+                            );
+                            return;
+                          }
+                          const merged = [...new Set([...editCaps, ...parsed])];
+                          if (merged.length > 50) {
+                            setBulkError("Maximum 50 capabilities per agent");
+                            return;
+                          }
+                          setEditCaps(merged);
+                          setBulkInput("");
+                          setCapMode("single");
+                        }}
+                      >
+                        Import{" "}
+                        {bulkInput.trim()
+                          ? `(${(() => {
+                              try {
+                                const j = JSON.parse(bulkInput.trim());
+                                return Array.isArray(j)
+                                  ? j.length
+                                  : bulkInput.split(",").filter((s) => s.trim())
+                                      .length;
+                              } catch {
+                                return bulkInput
+                                  .split(",")
+                                  .filter((s) => s.trim()).length;
+                              }
+                            })()})`
+                          : ""}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Current capabilities */}
                   <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "8px",
+                      marginTop: "4px",
+                    }}
                   >
                     {editCaps.map((cap) => (
                       <button
@@ -787,12 +959,27 @@ export default function AgentDetail() {
                       </button>
                     ))}
                   </div>
+                  {editCaps.length > 0 && (
+                    <p
+                      className="mono"
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--gray)",
+                        marginTop: "8px",
+                      }}
+                    >
+                      {editCaps.length}/50 capabilities · click any tag to
+                      remove
+                    </p>
+                  )}
                 </div>
                 {saveMsg && (
                   <div
                     style={{
-                      background: "#E8FFF4",
-                      border: "2px solid var(--green)",
+                      background: saveMsg.startsWith("Error")
+                        ? "#FFF0F0"
+                        : "#E8FFF4",
+                      border: `2px solid ${saveMsg.startsWith("Error") ? "var(--red)" : "var(--green)"}`,
                       padding: "10px 14px",
                       marginBottom: "16px",
                     }}
@@ -802,7 +989,9 @@ export default function AgentDetail() {
                       style={{
                         fontSize: "12px",
                         fontWeight: "700",
-                        color: "var(--green)",
+                        color: saveMsg.startsWith("Error")
+                          ? "var(--red)"
+                          : "var(--green)",
                       }}
                     >
                       ✓ {saveMsg}

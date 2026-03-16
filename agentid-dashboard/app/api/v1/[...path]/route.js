@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL;
+// FIX: use API_URL (no NEXT_PUBLIC_ prefix) — backend URL must not leak to browser bundle
+const BACKEND = process.env.API_URL;
 
 export async function GET(request, { params }) {
   return proxy(request, params, "GET");
@@ -21,12 +22,10 @@ export async function PUT(request, { params }) {
 }
 
 async function proxy(request, params, method) {
-  // Must be signed into Clerk
   const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  // Must have org API key cookie
   const cookieStore = await cookies();
   const apiKey = cookieStore.get("vouchid_session")?.value;
   if (!apiKey)
@@ -37,6 +36,12 @@ async function proxy(request, params, method) {
 
   const resolvedParams = await params;
   const pathSegments = resolvedParams.path ?? [];
+
+  // FIX: prevent path traversal — reject segments containing .. or backslashes
+  if (pathSegments.some((s) => s.includes("..") || s.includes("\\"))) {
+    return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+  }
+
   const backendPath = `/v1/${pathSegments.join("/")}`;
   const { search } = new URL(request.url);
   const url = `${BACKEND}${backendPath}${search}`;

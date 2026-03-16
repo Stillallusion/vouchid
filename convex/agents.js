@@ -424,3 +424,36 @@ export const rotateOrgApiKey = mutation({
     return { rotated: true };
   },
 });
+
+// ── Get a single approval by its Convex document ID ──
+export const getApprovalById = query({
+  args: { approvalId: v.id("approvalRequests") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.approvalId);
+  },
+});
+
+// ── Get org by Clerk user ID ──────────────────────────
+export const getOrgByClerkUserId = query({
+  args: { clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("organizations")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .first();
+  },
+});
+
+// ── Link a Clerk user ID to an org ────────────────────
+export const setOrgClerkUserId = mutation({
+  args: { orgId: v.string(), clerkUserId: v.string() },
+  handler: async (ctx, args) => {
+    const org = await ctx.db
+      .query("organizations")
+      .filter((q) => q.eq(q.field("orgId"), args.orgId))
+      .first();
+    if (!org) return null;
+    await ctx.db.patch(org._id, { clerkUserId: args.clerkUserId });
+    return { updated: true };
+  },
+});

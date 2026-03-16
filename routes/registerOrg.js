@@ -2,9 +2,9 @@ import { api } from "../convex/_generated/api.js";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../lib/auth.js";
 
-// Simple in-memory rate limiter for org registration.
-// Limits each IP to 5 signups per hour.
-// For production scale, replace with @fastify/rate-limit + Redis.
+// Org name: lowercase letters, numbers, hyphens, underscores only. Max 64 chars.
+const NAME_PATTERN = /^[a-z0-9_-]+$/i;
+
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60 * 60 * 1000;
 const _ipWindows = new Map();
@@ -12,7 +12,6 @@ const _ipWindows = new Map();
 function isRateLimited(ip) {
   const now = Date.now();
   const entry = _ipWindows.get(ip);
-
   if (!entry || now - entry.windowStart > WINDOW_MS) {
     _ipWindows.set(ip, { count: 1, windowStart: now });
     return false;
@@ -38,10 +37,24 @@ function registerOrg(fastify, options, done) {
       return reply.code(400).send({ error: "name is required" });
     }
 
-    const existing = await db.query(api.agents.getOrgByName, {
-      name: body.name,
-    });
+    // FIX: validate name length and characters
+    const name = body.name.trim();
+    if (name.length === 0) {
+      return reply.code(400).send({ error: "name cannot be blank" });
+    }
+    if (name.length > 64) {
+      return reply
+        .code(400)
+        .send({ error: "name must be 64 characters or fewer" });
+    }
+    if (!NAME_PATTERN.test(name)) {
+      return reply.code(400).send({
+        error:
+          "name may only contain letters, numbers, hyphens, and underscores",
+      });
+    }
 
+    const existing = await db.query(api.agents.getOrgByName, { name });
     if (existing) {
       return reply
         .code(409)
@@ -52,7 +65,7 @@ function registerOrg(fastify, options, done) {
     const apiKey = `sk_live_${uuidv4().replace(/-/g, "").slice(0, 32)}`;
 
     await db.mutation(api.agents.createOrg, {
-      name: body.name,
+      name,
       apiKey,
       orgId,
       plan: "free",
@@ -61,9 +74,9 @@ function registerOrg(fastify, options, done) {
     return reply.code(201).send({
       org_id: orgId,
       api_key: apiKey,
-      name: body.name,
+      name,
       plan: "free",
-      message: "Store your api_key somewhere safe — it won't be shown again",
+      message: "Store your api_key somewhere safe.",
     });
   });
 

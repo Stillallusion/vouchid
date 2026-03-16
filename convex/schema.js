@@ -7,7 +7,10 @@ export default defineSchema({
     apiKey: v.string(),
     orgId: v.string(),
     plan: v.string(),
-  }).index("by_apiKey", ["apiKey"]),
+    clerkUserId: v.optional(v.string()), // links a Clerk user to their org
+  })
+    .index("by_apiKey", ["apiKey"])
+    .index("by_clerkUserId", ["clerkUserId"]),
 
   agents: defineTable({
     agentId: v.string(),
